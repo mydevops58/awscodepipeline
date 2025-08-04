@@ -1,0 +1,10 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - npm install -g audit-ci
+      - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+  build:
+    commands:
+      - audit-ci --moderate
+      - trivy image --no-progress --severity CRITICAL,HIGH $ECR_REPO/demo-nodejs-app:latest

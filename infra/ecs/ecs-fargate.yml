@@ -3,7 +3,7 @@ Resources:
   Cluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: demo-fargate-cluster
+      ClusterName: demo-fargate-cluster2
 
   TaskExecutionRole:
     Type: AWS::IAM::Role
