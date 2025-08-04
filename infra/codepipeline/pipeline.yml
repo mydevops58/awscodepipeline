@@ -41,7 +41,7 @@ Resources:
                 Owner: mydevops58
                 Repo: awscodepipeline
                 Branch: main
-                OAuthToken: "{{resolve:secretsmanager:GitHubToken:SecretString}}"
+                OAuthToken: "{{resolve:secretsmanager:GitHubToken:SecretString:OAuthToken}}"
         - Name: Build
           Actions:
             - Name: BuildAction
