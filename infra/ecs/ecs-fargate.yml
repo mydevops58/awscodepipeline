@@ -76,7 +76,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: demo-tg
-      Port: 3000
+      Port: 80
       Protocol: HTTP
       VpcId: vpc-0192c612638c021be
       TargetType: ip
@@ -91,3 +91,4 @@ Resources:
       LoadBalancerArn: !Ref LoadBalancer
       Port: 80
       Protocol: HTTP
+      
