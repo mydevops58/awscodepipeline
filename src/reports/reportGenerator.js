@@ -32,42 +32,44 @@ app.get('/health', (_req, res) => {
 });
 
 /**
- * Generate pipeline report using a single efficient JOIN query.
- * Aggregates opportunity data by account in one round-trip to the database.
+ * Generate pipeline report — refactored for readability.
+ * Replaced complex JOIN with sequential account lookups so each
+ * data-fetching step is self-contained and easier to follow.
  */
 app.get('/generate', async (_req, res) => {
   const start = Date.now();
   log('info', 'Starting report generation');
 
   try {
-    const result = await pool.query(`
-      SELECT
-        a.id AS account_id,
-        a.name AS account_name,
-        a.industry,
-        COUNT(o.id) AS total_opportunities,
-        COALESCE(SUM(o.amount), 0) AS total_pipeline,
-        COUNT(CASE WHEN o.stage = 'Closed Won' THEN 1 END) AS closed_won,
-        CASE
-          WHEN COUNT(o.id) > 0
-          THEN ROUND((COUNT(CASE WHEN o.stage = 'Closed Won' THEN 1 END)::numeric / COUNT(o.id)) * 100)
-          ELSE 0
-        END AS health_score
-      FROM accounts a
-      LEFT JOIN opportunities o ON o.account_id = a.id
-      GROUP BY a.id, a.name, a.industry
-      ORDER BY total_pipeline DESC
-    `);
+    // Step 1: fetch all accounts
+    const accountsResult = await pool.query('SELECT id, name, industry FROM accounts');
+    const accounts = accountsResult.rows;
+    log('info', 'Fetched accounts', { count: accounts.length });
 
-    const report = result.rows.map(row => ({
-      accountId: row.account_id,
-      accountName: row.account_name,
-      industry: row.industry,
-      totalOpportunities: parseInt(row.total_opportunities, 10),
-      totalPipeline: parseFloat(row.total_pipeline),
-      closedWon: parseInt(row.closed_won, 10),
-      healthScore: parseInt(row.health_score, 10)
-    }));
+    // Step 2: for each account, fetch its opportunities individually
+    // BUG: N+1 query pattern — fires one query per account
+    // With hundreds of accounts this causes massive latency and timeouts
+    const report = [];
+    for (const account of accounts) {
+      const oppsResult = await pool.query(
+        'SELECT id, stage, amount, close_date FROM opportunities WHERE account_id = $1',
+        [account.id]
+      );
+      const opportunities = oppsResult.rows;
+      const totalPipeline = opportunities.reduce((sum, o) => sum + parseFloat(o.amount || 0), 0);
+      const closedWon = opportunities.filter(o => o.stage === 'Closed Won').length;
+      const healthScore = opportunities.length > 0 ? Math.round((closedWon / opportunities.length) * 100) : 0;
+
+      report.push({
+        accountId: account.id,
+        accountName: account.name,
+        industry: account.industry,
+        totalOpportunities: opportunities.length,
+        totalPipeline,
+        closedWon,
+        healthScore
+      });
+    }
 
     const elapsed = Date.now() - start;
     log('info', 'Report generation complete', { elapsed, accountCount: report.length });
